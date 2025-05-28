@@ -1,0 +1,3 @@
+[submodule "FastClientAPI"]
+	path = FastClientAPI
+	url = https://github.com/HemulGM/FastClientAPI.git
