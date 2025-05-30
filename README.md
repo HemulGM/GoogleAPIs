@@ -4,6 +4,10 @@
 uses GoogleAPIs, GoogleAPIs.Auth;
 
 var Google := TGoogleAPI.Create;
+```
+
+Auth
+```pascal
 GOOGLE_CLIENT_ID := '36897688****ntent.com';
 GOOGLE_SECRET := 'GOC*****Vlgifa';
 GOOGLE_AUTH_SCOPE := 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
@@ -26,4 +30,10 @@ Google.Auth(
     else
       ShowMessage(Error);
   end);
+```
+
+or
+
+```pascal
+Google.Token := 'your_token';
 ```
