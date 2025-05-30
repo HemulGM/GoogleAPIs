@@ -47,7 +47,6 @@ var
 
 procedure StartGetTokenProcess;
 begin
-  RunServer;
   var URI := TURI.Create(AUTH_URL);
   URI.AddParameter('client_id', GOOGLE_CLIENT_ID);
   URI.AddParameter('redirect_uri', LOCAL_SERVER_URL);
@@ -96,7 +95,6 @@ begin
   if Assigned(ProcTokenCallback) then
     ProcTokenCallback(GetAccessToken(Request.GetQueryParamValue('code')));
   Result := 'You can close this page.';
-  StopServer;
 end;
 
 procedure RunServer;
