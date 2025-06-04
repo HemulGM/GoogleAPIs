@@ -8,9 +8,9 @@ var Google := TGoogleAPI.Create;
 
 Auth
 ```pascal
-GOOGLE_CLIENT_ID := '36897688****ntent.com';
-GOOGLE_SECRET := 'GOC*****Vlgifa';
-GOOGLE_AUTH_SCOPE := 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
+Google.ClientId := '36897688****ntent.com';
+Google.ClientSecret := 'GOC*****Vlgifa';
+Google.Scope := 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
 
 // async work
 Google.Auth(
