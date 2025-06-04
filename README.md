@@ -1,5 +1,7 @@
 # GoogleAPIs
 
+Automatic OAuth2 authorization via a local server and user WebBrowser (non WebView)
+
 ```pascal
 uses GoogleAPIs, GoogleAPIs.Auth;
 
