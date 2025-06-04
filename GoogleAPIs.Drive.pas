@@ -3,9 +3,11 @@
 interface
 
 uses
-  System.Classes, Rest.Json, Rest.Json.Types, HGM.FastClientAPI;
+  System.Classes, Rest.Json, Rest.Json.Types, HGM.FastClientAPI, System.Net.Mime;
 
 type
+  TUploadFileParams = class(TFastMultipartFormData);
+
   TDriveFile = class
   private
     [JsonNameAttribute('kind')]
@@ -46,16 +48,16 @@ type
   TGoogleDriveRoute = class(TAPIRoute)
     function Files(const Query: string = ''): TFileList;
     function FilesInFolder(const ParentId: string): TFileList;
-    function CreateFolder(const Name: string): TDriveFile;
+    function CreateFolder(const ParentId: string; const Name: string): TDriveFile;
     function UploadFile(const FolderId: string; const FileName, FilePath: string): TDriveFile;
     procedure DownloadFile(const FileId: string; Response: TStream);
+    function GetFileLink(const FileId: string): string;
   end;
 
 implementation
 
 uses
-  System.SysUtils, System.Net.Mime, System.JSON, System.NetEncoding,
-  System.IOUtils;
+  System.SysUtils, System.JSON, System.NetEncoding, System.IOUtils;
 
 { TFileList }
 
@@ -68,12 +70,13 @@ end;
 
 { TGoogleDriveRoute }
 
-function TGoogleDriveRoute.CreateFolder(const Name: string): TDriveFile;
+function TGoogleDriveRoute.CreateFolder(const ParentId: string; const Name: string): TDriveFile;
 begin
   Result := API.Post<TDriveFile, TJSONParam>('drive/v3/files',
     procedure(Params: TJSONParam)
     begin
       Params.Add('name', Name);
+      Params.Add('parents', TJSONArray.Create(TJSONString.Create(ParentId)));
       Params.Add('mimeType', 'application/vnd.google-apps.folder');
     end);
 end;
@@ -93,6 +96,11 @@ begin
   Result := Files('"' + ParentId + '" in parents');
 end;
 
+function TGoogleDriveRoute.GetFileLink(const FileId: string): string;
+begin
+  Result := API.BaseUrl + '/drive/v3/files/' + FileId + '?alt=media';
+end;
+
 procedure TGoogleDriveRoute.DownloadFile(const FileId: string; Response: TStream);
 begin
   try
@@ -105,8 +113,8 @@ end;
 
 function TGoogleDriveRoute.UploadFile(const FolderId, FileName, FilePath: string): TDriveFile;
 begin
-  Result := API.PostForm<TDriveFile, TMultipartFormData>('upload/drive/v3/files?uploadType=multipart',
-    procedure(Params: TMultipartFormData)
+  Result := API.PostForm<TDriveFile, TUploadFileParams>('upload/drive/v3/files?uploadType=multipart',
+    procedure(Params: TUploadFileParams)
     begin
       var JSON := TJSONObject.Create;
       try
@@ -116,7 +124,7 @@ begin
       finally
         JSON.Free;
       end;
-      Params.AddFile('', FileName);
+      Params.AddFile('', FilePath);
     end);
 end;
 
