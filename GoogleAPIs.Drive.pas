@@ -43,9 +43,10 @@ type
     destructor Destroy; override;
   end;
 
-//appDataFolder
-
   TGoogleDriveRoute = class(TAPIRoute)
+    const
+      AppDataFolder = 'appDataFolder';
+  public
     function Files(const Query: string = ''): TFileList;
     function FilesInFolder(const ParentId: string): TFileList;
     function CreateFolder(const ParentId: string; const Name: string): TDriveFile;

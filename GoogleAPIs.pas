@@ -56,11 +56,12 @@ procedure TGoogleAPI.Auth(Callback: TProc<Boolean, string>);
 begin
   try
     FRedirectUri := TGoogleOAuth2Server.Run(
-      procedure(ACode: string)
+      procedure(ACode, AError: string)
       begin
-        var Error: string := '';
+        var Error: string := AError;
+        if not ACode.IsEmpty then
         try
-          var Response := Tokens.GetToken(ACode, ClientId, ClientSecret, FRedirectUri);
+          var Response := Tokens.GetByCode(ACode, ClientId, ClientSecret, FRedirectUri);
           if Assigned(Response) then
           try
             Token := Response.AccessToken;

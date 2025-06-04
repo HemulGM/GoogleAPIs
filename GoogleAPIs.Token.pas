@@ -14,6 +14,8 @@ type
     FAccessToken: string;
     [JsonNameAttribute('expires_in')]
     FExpiresIn: UInt64;
+    [JsonNameAttribute('refresh_token_expires_in')]
+    FRefreshTokenExpiresIn: UInt64;
     [JsonNameAttribute('scope')]
     FScope: string;
     [JsonNameAttribute('token_type')]
@@ -29,18 +31,20 @@ type
     property TokenType: string read FTokenType write FTokenType;
     property IdToken: string read FIdToken write FIdToken;
     property RefreshToken: string read FRefreshToken write FRefreshToken;
+    property RefreshTokenExpiresIn: UInt64 read FRefreshTokenExpiresIn write FRefreshTokenExpiresIn;
   end;
 
   TTokenRoute = class(TAPIRoute)
-    function GetToken(const Code, ClientId, ClientSecret, RedirectUri: string): TTokenResponse;
+    function GetByCode(const Code, ClientId, ClientSecret, RedirectUri: string): TTokenResponse;
+    function Refresh(const RefreshToken, ClientId, ClientSecret: string): TTokenResponse;
+    procedure Revoke(const Token: string);
   end;
 
 implementation
 
-
 { TTokenRoute }
 
-function TTokenRoute.GetToken(const Code, ClientId, ClientSecret, RedirectUri: string): TTokenResponse;
+function TTokenRoute.GetByCode(const Code, ClientId, ClientSecret, RedirectUri: string): TTokenResponse;
 begin
   Result := API.PostForm<TTokenResponse, TTokenParams>('https://oauth2.googleapis.com/token',
     procedure(Params: TTokenParams)
@@ -51,6 +55,27 @@ begin
       Params.AddField('redirect_uri', RedirectUri);
       Params.AddField('grant_type', 'authorization_code');
     end);
+end;
+
+function TTokenRoute.Refresh(const RefreshToken, ClientId, ClientSecret: string): TTokenResponse;
+begin
+  Result := API.PostForm<TTokenResponse, TTokenParams>('https://oauth2.googleapis.com/token',
+    procedure(Params: TTokenParams)
+    begin
+      Params.AddField('client_id', ClientId);
+      Params.AddField('client_secret', ClientSecret);
+      Params.AddField('refresh_token', RefreshToken);
+      Params.AddField('grant_type', 'refresh_token');
+    end);
+end;
+
+procedure TTokenRoute.Revoke(const Token: string);
+begin
+  API.PostForm<TObject, TTokenParams>('https://oauth2.googleapis.com/revoke',
+    procedure(Params: TTokenParams)
+    begin
+      Params.AddField('token', Token);
+    end).Free;
 end;
 
 end.

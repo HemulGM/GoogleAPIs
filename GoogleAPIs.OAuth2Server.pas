@@ -22,9 +22,9 @@ type
     class var
       Engine: MARS.Core.Engine.TMARSEngine;
       Server: MARS.http.Server.Indy.TMARShttpServerIndy;
-      ProcCodeCallback: TProc<string>;
+      ProcCodeCallback: TProc<string, string>;
   public
-    class function Run(Callback: TProc<string>): string;
+    class function Run(Callback: TProc<string, string>): string;
     class procedure Stop;
     class procedure StartOAuth2(const Uri: string);
   end;
@@ -42,7 +42,7 @@ uses
 function TGoogleAuthRoute.Auth: string;
 begin
   if Assigned(TGoogleOAuth2Server.ProcCodeCallback) then
-    TGoogleOAuth2Server.ProcCodeCallback(Request.GetQueryParamValue('code'));
+    TGoogleOAuth2Server.ProcCodeCallback(Request.GetQueryParamValue('code'), Request.GetQueryParamValue('error'));
   Result := 'You can close this page.';
 end;
 
@@ -53,7 +53,7 @@ begin
   ShellExecute(0, 'open', PChar(Uri), nil, nil, 0);
 end;
 
-class function TGoogleOAuth2Server.Run(Callback: TProc<string>): string;
+class function TGoogleOAuth2Server.Run(Callback: TProc<string, string>): string;
 begin
   Stop;
 
