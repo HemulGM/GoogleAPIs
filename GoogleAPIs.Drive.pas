@@ -3,7 +3,9 @@
 interface
 
 uses
-  System.Classes, Rest.Json, Rest.Json.Types, HGM.FastClientAPI, System.Net.Mime;
+  System.Classes, System.SysUtils, Rest.Json, Rest.Json.Types, HGM.FastClientAPI,
+  System.Generics.Collections, System.Generics.Defaults, System.Net.Mime,
+  System.JSON;
 
 type
   TUploadFileParams = class(TFastMultipartFormData);
@@ -18,8 +20,11 @@ type
     FName: string;
     [JsonNameAttribute('mimeType')]
     FMimeType: string;
+    [JsonNameAttribute('thumbnailLink')]
+    FThumbnailLink: string;
   public
     property Kind: string read FKind write FKind;
+    property ThumbnailLink: string read FThumbnailLink write FThumbnailLink;
     property Id: string read FId write FId;
     property Name: string read FName write FName;
     property MimeType: string read FMimeType write FMimeType;
@@ -27,8 +32,6 @@ type
 
   TFileList = class
   private
-    [JsonNameAttribute('files')]
-    FFiles: TArray<TDriveFile>;
     [JsonNameAttribute('kind')]
     FKind: string;
     [JsonNameAttribute('nextPageToken')]
@@ -36,33 +39,50 @@ type
     [JsonNameAttribute('incompleteSearch')]
     FIncompleteSearch: Boolean;
   public
-    property Files: TArray<TDriveFile> read FFiles write FFiles;
     property Kind: string read FKind write FKind;
     property NextPageToken: string read FNextPageToken write FNextPageToken;
     property IncompleteSearch: Boolean read FIncompleteSearch write FIncompleteSearch;
+  end;
+
+  TFileList<T: TDriveFile> = class(TFileList)
+  private
+    [JsonNameAttribute('files')]
+    FFiles: TArray<T>;
+  public
+    property Files: TArray<T> read FFiles write FFiles;
     destructor Destroy; override;
   end;
+
+  TUpdateFileMetaParam = class(TJSONParam)
+    function AppProperties(const Value: TArray<TPair<string, string>>): TUpdateFileMetaParam;
+    function Properties(const Value: TArray<TPair<string, string>>): TUpdateFileMetaParam;
+    function ContentHints(const Key: string; Value: TJSONObject): TUpdateFileMetaParam;
+  end;
+
+  TFileListDefault = TFileList<TDriveFile>;
 
   TGoogleDriveRoute = class(TAPIRoute)
     const
       AppDataFolder = 'appDataFolder';
+      AppProperties = 'appProperties';
   public
-    function Files(const Query: string = ''): TFileList;
-    function FilesInFolder(const ParentId: string): TFileList;
+    function Files<T: TFileList, constructor>(const Query: string = ''; const Fields: TArray<string> = []): T;
+    function FilesInFolder<T: TFileList, constructor>(const ParentId: string; const Query: string = ''; const Fields: TArray<string> = []): T;
     function CreateFolder(const ParentId: string; const Name: string): TDriveFile;
     function UploadFile(const FolderId: string; const FileName, FilePath: string): TDriveFile;
-    procedure DownloadFile(const FileId: string; Response: TStream);
+    function UpdateFileMeta(const FileId: string; Params: TProc<TUpdateFileMetaParam>): TDriveFile;
+    function DownloadFile(const FileId: string; Response: TStream): Integer;
     function GetFileLink(const FileId: string): string;
   end;
 
 implementation
 
 uses
-  System.SysUtils, System.JSON, System.NetEncoding, System.IOUtils;
+  System.NetEncoding, System.StrUtils, System.IOUtils;
 
-{ TFileList }
+{ TFileList<T> }
 
-destructor TFileList.Destroy;
+destructor TFileList<T>.Destroy;
 begin
   for var Item in FFiles do
     Item.Free;
@@ -82,19 +102,21 @@ begin
     end);
 end;
 
-function TGoogleDriveRoute.Files(const Query: string): TFileList;
+function TGoogleDriveRoute.Files<T>(const Query: string; const Fields: TArray<string>): T;
 begin
-  Result := API.Get<TFileList, TJSONParam>('drive/v3/files',
+  Result := API.Get<T, TJSONParam>('drive/v3/files',
     procedure(Params: TJSONParam)
     begin
       if not Query.IsEmpty then
         Params.Add('q', TNetEncoding.URL.EncodeQuery(Query));
+      if Length(Fields) > 0 then
+        Params.Add('fields', 'files(' + TNetEncoding.URL.EncodeQuery(string.Join(',', Fields)) + ')');
     end);
 end;
 
-function TGoogleDriveRoute.FilesInFolder(const ParentId: string): TFileList;
+function TGoogleDriveRoute.FilesInFolder<T>(const ParentId: string; const Query: string; const Fields: TArray<string>): T;
 begin
-  Result := Files('"' + ParentId + '" in parents');
+  Result := Files<T>('"' + ParentId + '" in parents' + IfThen(not Query.IsEmpty, ' and (' + Query + ')'), Fields);
 end;
 
 function TGoogleDriveRoute.GetFileLink(const FileId: string): string;
@@ -102,14 +124,19 @@ begin
   Result := API.BaseUrl + '/drive/v3/files/' + FileId + '?alt=media';
 end;
 
-procedure TGoogleDriveRoute.DownloadFile(const FileId: string; Response: TStream);
+function TGoogleDriveRoute.DownloadFile(const FileId: string; Response: TStream): Integer;
 begin
   try
-    API.GetFile('drive/v3/files/' + FileId + '?alt=media', Response);
+    Result := API.GetFile('drive/v3/files/' + FileId + '?alt=media', Response);
   except
     Response.Size := 0;
     raise;
   end;
+end;
+
+function TGoogleDriveRoute.UpdateFileMeta(const FileId: string; Params: TProc<TUpdateFileMetaParam>): TDriveFile;
+begin
+  Result := API.Patch<TDriveFile, TUpdateFileMetaParam>('drive/v3/files/' + FileId + '?fields=contentHints,properties,appProperties', Params);
 end;
 
 function TGoogleDriveRoute.UploadFile(const FolderId, FileName, FilePath: string): TDriveFile;
@@ -127,6 +154,30 @@ begin
       end;
       Params.AddFile('', FilePath);
     end);
+end;
+
+{ TUpdateFileMetaParam }
+
+function TUpdateFileMetaParam.AppProperties(const Value: TArray<TPair<string, string>>): TUpdateFileMetaParam;
+begin
+  var Values := TJSONParam.Create;
+  for var Item in Value do
+    Values.Add(Item.Key, Item.Value);
+  Result := TUpdateFileMetaParam(Add('appProperties', Values));
+end;
+
+function TUpdateFileMetaParam.ContentHints(const Key: string; Value: TJSONObject): TUpdateFileMetaParam;
+begin
+  GetOrCreateObject('contentHints').AddPair(Key, Value);
+  Result := Self;
+end;
+
+function TUpdateFileMetaParam.Properties(const Value: TArray<TPair<string, string>>): TUpdateFileMetaParam;
+begin
+  var Values := TJSONParam.Create;
+  for var Item in Value do
+    Values.Add(Item.Key, Item.Value);
+  Result := TUpdateFileMetaParam(Add('properties', Values));
 end;
 
 end.

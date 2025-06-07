@@ -36,11 +36,16 @@ type
 
   TTokenRoute = class(TAPIRoute)
     function GetByCode(const Code, ClientId, ClientSecret, RedirectUri: string): TTokenResponse;
-    function Refresh(const RefreshToken, ClientId, ClientSecret: string): TTokenResponse;
-    procedure Revoke(const Token: string);
+    function Refresh(const RefreshToken, ClientId, ClientSecret: string): TTokenResponse; overload;
+    procedure Refresh; overload;
+    procedure Revoke(const Token: string); overload;
+    procedure Revoke; overload;
   end;
 
 implementation
+
+uses
+  GoogleAPIs;
 
 { TTokenRoute }
 
@@ -67,6 +72,22 @@ begin
       Params.AddField('refresh_token', RefreshToken);
       Params.AddField('grant_type', 'refresh_token');
     end);
+end;
+
+procedure TTokenRoute.Refresh;
+begin
+  var Response := Refresh(TGoogleAPI(API).RefreshToken, TGoogleAPI(API).ClientId, TGoogleAPI(API).ClientSecret);
+  if Assigned(Response) then
+  try
+    TGoogleAPI(API).AccessToken := Response.AccessToken;
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TTokenRoute.Revoke;
+begin
+  Revoke(TGoogleAPI(API).AccessToken);
 end;
 
 procedure TTokenRoute.Revoke(const Token: string);

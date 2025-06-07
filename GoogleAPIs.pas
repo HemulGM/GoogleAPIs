@@ -15,7 +15,7 @@ type
   private
     FDrive: TGoogleDriveRoute;
     FUserInfo: TUserInfoRoute;
-    FTokens: TTokenRoute;
+    FToken: TTokenRoute;
     FScope: string;
     FClientId: string;
     FClientSecret: string;
@@ -27,12 +27,12 @@ type
     procedure SetClientSecret(const Value: string);
     procedure SetRedirectUri(const Value: string);
     procedure SetScope(const Value: string);
-    function GetTokens: TTokenRoute;
+    function GetToken: TTokenRoute;
     procedure SetRefreshToken(const Value: string);
   public
     property Drive: TGoogleDriveRoute read GetDrive;
     property UserInfo: TUserInfoRoute read GetUserInfo;
-    property Tokens: TTokenRoute read GetTokens;
+    property Token: TTokenRoute read GetToken;
   public
     procedure Auth(Callback: TProc<Boolean, string>);
     function GetOAuth2Uri(const Offline: Boolean = True; const Force: Boolean = True): string;
@@ -61,10 +61,10 @@ begin
         var Error: string := AError;
         if not ACode.IsEmpty then
         try
-          var Response := Tokens.GetByCode(ACode, ClientId, ClientSecret, FRedirectUri);
+          var Response := Token.GetByCode(ACode, ClientId, ClientSecret, FRedirectUri);
           if Assigned(Response) then
           try
-            Token := Response.AccessToken;
+            AccessToken := Response.AccessToken;
             RefreshToken := Response.RefreshToken;
           finally
             Response.Free;
@@ -72,11 +72,11 @@ begin
         except
           on E: Exception do
           begin
-            Token := '';
+            AccessToken := '';
             Error := E.Message;
           end;
         end;
-        Callback(not Token.IsEmpty, Error);
+        Callback(not AccessToken.IsEmpty, Error);
       end);
     TGoogleOAuth2Server.StartOAuth2(GetOAuth2Uri);
   except
@@ -89,6 +89,13 @@ constructor TGoogleAPI.Create;
 begin
   inherited;
   BaseUrl := BASE_API_URL;
+  OnAuthErrorCallback :=
+    function: Boolean
+    begin
+      AccessToken := '';
+      Token.Refresh;
+      Result := not AccessToken.IsEmpty;
+    end;
 end;
 
 destructor TGoogleAPI.Destroy;
@@ -97,7 +104,7 @@ begin
   TGoogleOAuth2Server.Stop;
   FDrive.Free;
   FUserInfo.Free;
-  FTokens.Free;
+  FToken.Free;
   inherited;
 end;
 
@@ -123,11 +130,11 @@ begin
   Result := URI.Encode;
 end;
 
-function TGoogleAPI.GetTokens: TTokenRoute;
+function TGoogleAPI.GetToken: TTokenRoute;
 begin
-  if not Assigned(FTokens) then
-    FTokens := TTokenRoute.CreateRoute(Self);
-  Result := FTokens;
+  if not Assigned(FToken) then
+    FToken := TTokenRoute.CreateRoute(Self);
+  Result := FToken;
 end;
 
 function TGoogleAPI.GetUserInfo: TUserInfoRoute;
